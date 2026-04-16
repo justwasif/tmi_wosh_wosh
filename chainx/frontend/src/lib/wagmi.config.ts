@@ -1,25 +1,24 @@
-import { http, createConfig } from 'wagmi'
-import { sepolia, foundry } from 'wagmi/chains'
-import { injected, metaMask } from 'wagmi/connectors'
+import { defineConfig } from '@wagmi/cli'
+import { react } from '@wagmi/cli/plugins'
+import { foundry } from '@wagmi/cli/plugins'
 
 /**
- * wagmi v2 config.
- * Chains: local Anvil (foundry) + Sepolia testnet.
- * Connectors: injected (MetaMask, Rabby, etc.) + explicit MetaMask.
+ * wagmi CLI config.
+ * Run: pnpm wagmi generate
+ * Reads ABIs from forge out/ and generates typed React hooks into src/generated.ts
  */
-export const wagmiConfig = createConfig({
-  chains: [foundry, sepolia],
-  transports: {
-    [foundry.id]: http('http://127.0.0.1:8545'),
-    [sepolia.id]: http(
-      import.meta.env.VITE_SEPOLIA_RPC_URL ?? 'https://rpc.sepolia.org'
-    ),
-  },
-  connectors: [injected(), metaMask()],
+export default defineConfig({
+  out: 'src/generated.ts',
+  plugins: [
+    foundry({
+      project: '../contracts',
+      include: [
+        'StakeholderRegistry.sol/**',
+        'ProductRegistry.sol/**',
+        'ZKVerifier.sol/**',
+        'Escrow.sol/**',
+      ],
+    }),
+    react(),
+  ],
 })
-
-declare module 'wagmi' {
-  interface Register {
-    config: typeof wagmiConfig
-  }
-}
