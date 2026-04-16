@@ -1,24 +1,19 @@
 {
-  "name": "chainx",
+  "name": "chainx-oracle",
   "private": true,
   "version": "0.0.0",
+  "type": "module",
   "scripts": {
-    "dev": "pnpm --filter chainx-frontend dev",
-    "build": "pnpm --filter chainx-frontend build",
-    "lint": "pnpm -r lint",
-    "format": "prettier --write \"**/*.{ts,tsx,sol,json,md}\" --ignore-path .gitignore",
-    "format:check": "prettier --check \"**/*.{ts,tsx,sol,json,md}\" --ignore-path .gitignore",
-    "test:contracts": "cd contracts && forge test",
-    "test:types": "pnpm --filter chainx-frontend exec tsc --noEmit"
+    "dev": "tsx src/relayer.ts",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "dotenv": "^16.0.0",
+    "viem": "2.x"
   },
   "devDependencies": {
-    "husky": "^9.0.11",
-    "lint-staged": "^15.2.2",
-    "prettier": "^3.2.5",
-    "prettier-plugin-solidity": "^1.3.1"
-  },
-  "lint-staged": {
-    "*.{ts,tsx,json,md}": ["prettier --write"],
-    "*.sol": ["prettier --write --plugin prettier-plugin-solidity"]
+    "tsx": "^4.0.0",
+    "typescript": "^5.2.2",
+    "@types/node": "^20.0.0"
   }
 }
