@@ -1,6 +1,6 @@
 import { useAccount, useReadContract } from 'wagmi'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
-import { type Address } from 'viem'
+import { type Address, keccak256, toBytes } from 'viem'
 import { useState } from 'react'
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -9,21 +9,13 @@ const STAKEHOLDER_REGISTRY_ADDRESS = (
   import.meta.env.VITE_STAKEHOLDER_REGISTRY_ADDRESS ?? '0x0000000000000000000000000000000000000000'
 ) as Address
 
-const PRODUCT_REGISTRY_ADDRESS = (
-  import.meta.env.VITE_PRODUCT_REGISTRY_ADDRESS ?? '0x0000000000000000000000000000000000000000'
-) as Address
-
-const ESCROW_ADDRESS = (
-  import.meta.env.VITE_ESCROW_ADDRESS ?? '0x0000000000000000000000000000000000000000'
-) as Address
-
 // ── Role constants (match Solidity keccak256) ─────────────────────────────────
 
 const ROLES = {
-  MANUFACTURER:   '0x' + Buffer.from('MANUFACTURER').toString('hex').padStart(64, '0'),
-  DISTRIBUTOR:    '0x' + Buffer.from('DISTRIBUTOR').toString('hex').padStart(64, '0'),
-  RETAILER:       '0x' + Buffer.from('RETAILER').toString('hex').padStart(64, '0'),
-  DELIVERY_AGENT: '0x' + Buffer.from('DELIVERY_AGENT').toString('hex').padStart(64, '0'),
+  MANUFACTURER:   keccak256(toBytes('MANUFACTURER')),
+  DISTRIBUTOR:    keccak256(toBytes('DISTRIBUTOR')),
+  RETAILER:       keccak256(toBytes('RETAILER')),
+  DELIVERY_AGENT: keccak256(toBytes('DELIVERY_AGENT')),
 } as const
 
 const REGISTRY_ABI = [
@@ -40,29 +32,10 @@ const REGISTRY_ABI = [
 ] as const
 
 // ── Role hook ─────────────────────────────────────────────────────────────────
-
-function useStakeholderRole(address: Address | undefined) {
-  const enabled = !!address
-
-  const check = (role: `0x${string}`) =>
-    useReadContract({
-      address: STAKEHOLDER_REGISTRY_ADDRESS,
-      abi: REGISTRY_ABI,
-      functionName: 'hasRole',
-      args: address ? [address, role as `0x${string}`] : undefined,
-      query: { enabled },
-    }).data as boolean | undefined
-
-  // NOTE: hooks called unconditionally below — React rules of hooks
-  return {
-    isManufacturer:  check(ROLES.MANUFACTURER   as `0x${string}`),
-    isDistributor:   check(ROLES.DISTRIBUTOR    as `0x${string}`),
-    isRetailer:      check(ROLES.RETAILER       as `0x${string}`),
-    isDeliveryAgent: check(ROLES.DELIVERY_AGENT as `0x${string}`),
-  }
-}
-
-// ── Role hook (correct — one hook per role) ───────────────────────────────────
+// FIX: removed the broken `useStakeholderRole` function that called useReadContract
+// inside a plain helper function (`check`). React hooks must only be called at the
+// top level of a React function — not inside nested functions.
+// Each role now gets its own top-level hook call (useRole) called from the component.
 
 function useRole(address: Address | undefined, role: `0x${string}`) {
   const { data } = useReadContract({
@@ -212,6 +185,9 @@ function CustomerPanel() {
 export default function DashboardPage() {
   const { address, isConnected } = useAccount()
 
+  // FIX: four separate top-level hook calls (was previously routed through a
+  // helper that called hooks inside a nested function — a Rules of Hooks violation
+  // that causes React to crash or silently produce wrong values).
   const isManufacturer  = useRole(address, ROLES.MANUFACTURER   as `0x${string}`)
   const isDistributor   = useRole(address, ROLES.DISTRIBUTOR    as `0x${string}`)
   const isRetailer      = useRole(address, ROLES.RETAILER       as `0x${string}`)
@@ -251,7 +227,6 @@ export default function DashboardPage() {
             {isDistributor   && <DistributorPanel />}
             {isRetailer      && <RetailerPanel />}
             {isDeliveryAgent && <DeliveryAgentPanel />}
-            {/* Always show customer panel for escrow buyers */}
             <CustomerPanel />
           </div>
         )}

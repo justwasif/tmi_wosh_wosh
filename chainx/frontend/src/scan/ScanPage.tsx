@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import QrScanner from 'qr-scanner'
 
@@ -8,14 +8,13 @@ type ScanMode = 'camera' | 'file'
 type ScanStatus = 'idle' | 'scanning' | 'success' | 'error'
 
 function extractProductId(raw: string): string | null {
-  // Accepts either a plain number "42" or a URL ending /product/42
   const urlMatch = raw.match(/\/product\/(\d+)/)
   if (urlMatch) return urlMatch[1]
   if (/^\d+$/.test(raw.trim())) return raw.trim()
   return null
 }
 
-// ── QR Generation helper (for ProductRegistry to call after mint) ─────────────
+// ── QR Generation helper ──────────────────────────────────────────────────────
 
 export async function generateQRDataUrl(productId: string | number): Promise<string> {
   const QRCode = await import('qrcode')
@@ -41,7 +40,26 @@ export default function ScanPage() {
   const [scannedId, setScannedId] = useState<string | null>(null)
   const [camActive, setCamActive] = useState(false)
 
+  // FIX: wrapped handleScanResult in useCallback so it has a stable reference.
+  // Previously it was a plain function recreated on every render, which meant the
+  // useEffect below could capture a stale closure and the ESLint exhaustive-deps
+  // rule (and React's runtime) would warn about the missing dependency.
+  const handleScanResult = useCallback((raw: string) => {
+    const pid = extractProductId(raw)
+    if (!pid) {
+      setStatus('error')
+      setErrorMsg(`QR does not encode a valid product ID: "${raw}"`)
+      return
+    }
+    setScannedId(pid)
+    setStatus('success')
+    scannerRef.current?.stop()
+    setTimeout(() => navigate(`/product/${pid}`), 900)
+  }, [navigate])
+
   // ── Camera scanner ──────────────────────────────────────────────────────────
+  // FIX: added handleScanResult to the dependency array. It was missing before,
+  // meaning the effect captured a stale version of the function after re-renders.
 
   useEffect(() => {
     if (mode !== 'camera' || !videoRef.current) return
@@ -63,22 +81,7 @@ export default function ScanPage() {
       scanner.destroy()
       setCamActive(false)
     }
-  }, [mode])
-
-  // ── Result handler ──────────────────────────────────────────────────────────
-
-  function handleScanResult(raw: string) {
-    const pid = extractProductId(raw)
-    if (!pid) {
-      setStatus('error')
-      setErrorMsg(`QR does not encode a valid product ID: "${raw}"`)
-      return
-    }
-    setScannedId(pid)
-    setStatus('success')
-    scannerRef.current?.stop()
-    setTimeout(() => navigate(`/product/${pid}`), 900)
-  }
+  }, [mode, handleScanResult])
 
   // ── File upload ─────────────────────────────────────────────────────────────
 
@@ -141,7 +144,6 @@ export default function ScanPage() {
                   <span>Initialising camera…</span>
                 </div>
               )}
-              {/* Corner guides */}
               <div className="corner tl" /><div className="corner tr" />
               <div className="corner bl" /><div className="corner br" />
             </div>
@@ -204,7 +206,6 @@ export default function ScanPage() {
           </div>
         )}
 
-        {/* Camera hint */}
         {mode === 'camera' && status === 'idle' && camActive && (
           <p className="scan-hint">Hold steady — scanning automatically</p>
         )}
@@ -318,7 +319,6 @@ export default function ScanPage() {
           font-size: 0.85rem;
         }
 
-        /* Corner brackets */
         .corner {
           position: absolute;
           width: 24px;
